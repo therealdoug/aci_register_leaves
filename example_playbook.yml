@@ -1,0 +1,23 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  
+  vars:
+    aci_hostname: 'aci-apic1'
+    validate_certs: no
+    
+    nodes:
+      - { node1: "115", node2: "116", pod: "1" , site: "XXX" }
+      - { node1: "117", node2: "118", pod: "2" , site: "YYY" }
+
+  tasks:
+    # Import default variables for environment (tenant, aaep, domain, etc...)
+    - name: Gather Globabl Variables
+      include_vars:  ~/ansible/production_vars.yml
+
+    # Workhorse
+    - include_role:
+        name: ~/ansible/roles/aci_register_leaves
+      with_items: '{{ nodes }}'
