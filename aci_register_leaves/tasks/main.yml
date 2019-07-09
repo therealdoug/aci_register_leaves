@@ -1,0 +1,54 @@
+---
+# tasks file for aci_register_leaves
+
+#  - debug:
+#      msg: "POD: {{ item.pod }}"
+#      
+#  - debug:
+#      msg: "{{ item|json_query('@.[node1,node2]') }}"
+      
+  - name: Set Facts for this iteration
+    no_log: True
+    set_fact:
+      local_pod: "{{ item.pod }}"
+      local_site: "{{ item.site }}"
+    
+  - name: "Query Leaves - |{{item.node1}} / {{ item.node2}}|"
+    aci_rest:
+      hostname: '{{aci_hostname }}'
+      username: '{{ aci_tacacs_username }}'
+      password: '{{ aci_tacacs_password }}'
+      validate_certs: '{{ validate_certs }}'
+      path: api/node/mo/topology/pod-{{ local_pod }}/node-{{ node }}.json?query-target=children&target-subtree-class=topSystem
+      method: get
+    register: return_data
+    with_items: "{{ item|json_query('@.[node1,node2]') }}"
+    loop_control:
+      loop_var: node
+      
+#  - debug:
+#      var: return_data.results[0]
+ 
+  - name: Extract Leaf Hostname and IP
+    set_fact:
+      dns_hostnames: "{{ return_data|json_query('results[*].imdata[*].topSystem.attributes.{oobMgmtAddr: oobMgmtAddr,name: name}')}}"
+
+    
+#  - debug:
+#      var: dns_hostnames
+
+  - name: Configure DNS Host Record
+    nios_host_record:
+      name: "{{ _item.name }}.{{ local_site|lower }}.fqdn.com"
+      ipv4:
+        - address: "{{ _item.oobMgmtAddr }}"
+      state: present
+      provider:
+        host: "ibgm.fqdn.com"
+        username: '{{ aci_tacacs_username }}'
+        password: '{{ aci_tacacs_password }}'
+    connection: local
+    with_items: "{{ dns_hostnames }}"
+    loop_control:
+      loop_var: _item
+    ignore_errors: yes
